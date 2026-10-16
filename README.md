@@ -1,5 +1,7 @@
 # dsh-skill-sync
 
+English | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
+
 Thin wrapper around the mattpocock skills sync script, exposed as a DSH command
 and an opt-in periodic timer.
 
