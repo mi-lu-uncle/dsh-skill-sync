@@ -1,0 +1,4 @@
+# Bundle patch layer: mounts this package as one host plugin row.
+- insert:
+    - id: skill-sync
+      name: dsh-skill-sync
