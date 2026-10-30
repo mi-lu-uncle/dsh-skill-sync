@@ -11,7 +11,7 @@ DSH's filesystem skill provider hot-reloads skill directories after a `git
 pull` (its watcher follows symlinks by default), but nothing triggers the pull
 **or** keeps the symlinks in sync. The sync script does both halves:
 
-1. `git pull --ff-only` the mirror, and
+1. fast-forward the mirror from its origin, and
 2. reconcile symlinks in the skill root — link newly added skills, repair moved
    ones, and remove stale links for skills that were deleted or deprecated.
 
@@ -33,14 +33,18 @@ Set these on the `skill-sync` row in your profile patch (`cordis.patch.yml`):
 ```yaml
 - id: skill-sync
   config:
-    script: /Users/you/.dsh/bin/mattpocock-skills-sync.sh  # default: ~/.dsh/bin/mattpocock-skills-sync.sh
+    script: /absolute/path/to/custom-sync.sh                # optional; defaults to the bundled script
     intervalMs: 1800000                                     # default: 30 minutes
     auto: false                                             # default: false (set true to opt in)
 ```
 
 ## Install
 
+Clone the mirror once before installing. Existing files and links from other sources are preserved and reported as conflicts; divergent history is reported without resetting the mirror.
+
 ```sh
+mkdir -p ~/.dsh/repos
+git clone https://github.com/mattpocock/skills ~/.dsh/repos/mattpocock-skills
 dsh plugin --profile desktop add /absolute/path/to/dsh-skill-sync
 ```
 

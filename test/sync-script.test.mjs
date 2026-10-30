@@ -9,8 +9,9 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const SCRIPT = path.join(process.env.HOME, '.dsh', 'bin', 'mattpocock-skills-sync.sh');
+const SCRIPT = fileURLToPath(new URL('../lib/mattpocock-skills-sync.sh', import.meta.url));
 const sh = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'matt-sync-'));
@@ -63,6 +64,33 @@ assert.ok(!fs.existsSync(path.join(dest, 'bbb')), 'bbb moved to deprecated -> st
 assert.ok(!fs.existsSync(path.join(dest, 'ccc')), 'misc still skipped');
 assert.match(out, /已更新/);
 assert.match(out, /清理死链 1 个/);
+
+// Never replace a real directory or a link managed by another source.
+mkSkill('engineering', 'conflict-dir');
+mkSkill('engineering', 'conflict-link');
+commit('conflicts');
+const external = path.join(tmp, 'external');
+fs.mkdirSync(external);
+fs.mkdirSync(path.join(dest, 'conflict-dir'));
+fs.writeFileSync(path.join(dest, 'conflict-dir', 'keep.txt'), 'keep');
+fs.symlinkSync(external, path.join(dest, 'conflict-link'));
+const conflictOut = runSync();
+assert.equal(fs.readFileSync(path.join(dest, 'conflict-dir', 'keep.txt'), 'utf8'), 'keep');
+assert.equal(fs.readlinkSync(path.join(dest, 'conflict-link')), external);
+assert.match(conflictOut, /冲突/);
+
+// A mirror with local commits and rewritten upstream must not be reset.
+mkSkill('engineering', 'local-only');
+sh('git', ['-C', repo, 'add', '.']);
+sh('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'local']);
+const localHead = sh('git', ['-C', repo, 'rev-parse', 'HEAD']).trim();
+fs.mkdirSync(path.join(contrib, 'skills', 'engineering', 'upstream-only'), { recursive: true });
+fs.writeFileSync(path.join(contrib, 'skills', 'engineering', 'upstream-only', 'SKILL.md'), '---\nname: upstream-only\ndescription: d\n---\n');
+sh('git', ['-C', contrib, 'add', '.']);
+sh('git', ['-C', contrib, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'upstream']);
+sh('git', ['-C', contrib, 'push', '--quiet', '--force', 'origin', 'main']);
+assert.throws(runSync, /更新失败/);
+assert.equal(sh('git', ['-C', repo, 'rev-parse', 'HEAD']).trim(), localHead);
 
 console.log(out.trim());
 console.log('sync-script: OK');

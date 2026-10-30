@@ -37,5 +37,39 @@ const err = await registered2[0].handler({});
 assert.equal(err.kind, 'error');
 assert.match(err.text, /boom/);
 
+// Concurrent manual and timer calls must share one script process.
+const countFile = path.join(tmp, 'calls');
+const slowScript = path.join(tmp, 'slow.sh');
+fs.writeFileSync(slowScript, 'echo call >> "$COUNT_FILE"\nsleep 0.2\necho done\n');
+process.env.COUNT_FILE = countFile;
+const parallel = [];
+let timerTick;
+const realSetInterval = globalThis.setInterval;
+try {
+  globalThis.setInterval = (fn) => { timerTick = fn; return 0; };
+  apply({ commands: { register: (d) => parallel.push(d) }, effect: (fn) => fn().next() }, { script: slowScript, auto: true });
+} finally {
+  globalThis.setInterval = realSetInterval;
+}
+timerTick();
+const [one, two] = await Promise.all([parallel[0].handler({}), parallel[0].handler({})]);
+assert.equal(one.kind, 'success');
+assert.deepEqual(two, one);
+assert.equal(fs.readFileSync(countFile, 'utf8').trim().split('\n').length, 1);
+await parallel[0].handler({});
+assert.equal(fs.readFileSync(countFile, 'utf8').trim().split('\n').length, 2, 'a later call runs again');
+delete process.env.COUNT_FILE;
+
+// With no custom script, execute the bundled one even on a clean HOME.
+const previousRepo = process.env.MATTPOCOCK_REPO;
+process.env.MATTPOCOCK_REPO = path.join(tmp, 'missing-mirror');
+const defaults = [];
+apply({ commands: { register: (d) => defaults.push(d) } }, {});
+const missingMirror = await defaults[0].handler({});
+assert.equal(missingMirror.kind, 'error');
+assert.match(missingMirror.text, /找不到技能镜像/);
+if (previousRepo === undefined) delete process.env.MATTPOCOCK_REPO;
+else process.env.MATTPOCOCK_REPO = previousRepo;
+
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log('smoke: OK');

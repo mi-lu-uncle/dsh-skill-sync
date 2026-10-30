@@ -9,9 +9,11 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "lib/index.js",
+    "lib",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "README.zh-CN.md",
+    "README.ja.md"
   ],
   "license": "MIT",
   "dsh": {
